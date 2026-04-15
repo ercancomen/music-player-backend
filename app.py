@@ -4,32 +4,40 @@ import yt_dlp
 
 app = Flask(__name__)
 
+# Sunucunun çalışıp çalışmadığını test etmek için ana sayfa
+@app.route('/')
+def home():
+    return "Müzik Sunucusu Aktif!"
+
 @app.route('/search', methods=['GET'])
 def search():
     query = request.args.get('term')
     if not query:
         return jsonify([])
     
-    # Daha hızlı ve güvenli arama için ayarlar
+    # Render gibi servislerde YouTube engelini aşmak için ayarlar
     ydl_opts = {
         'format': 'bestaudio/best',
         'noplaylist': True,
         'quiet': True,
         'no_warnings': True,
         'default_search': 'ytsearch',
-        'extract_flat': False
+        'nocheckcertificate': True,
+        'ignoreerrors': False,
+        'logtostderr': False,
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
     
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # YouTube'da ara
-            info_dict = ydl.extract_info(f"ytsearch10:{query}", download=False)
+            # YouTube'da ara ve ilk 5 sonucu al
+            search_results = ydl.extract_info(f"ytsearch5:{query}", download=False)
             
-            if not info_dict or 'entries' not in info_dict:
+            if not search_results or 'entries' not in search_results:
                 return jsonify([])
                 
             results = []
-            for entry in info_dict['entries']:
+            for entry in search_results['entries']:
                 if entry:
                     results.append({
                         'trackId': str(entry.get('id', '')),
@@ -40,8 +48,8 @@ def search():
                     })
             return jsonify(results)
     except Exception as e:
-        print(f"Hata oluştu: {str(e)}")
-        # Hatayı uygulamaya gönder ki ne olduğunu görelim
+        # Hatayı terminale bas
+        print(f"Hata: {str(e)}")
         return jsonify([{"trackId": "error", "trackName": str(e)}]), 500
 
 if __name__ == '__main__':
