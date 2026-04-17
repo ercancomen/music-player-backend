@@ -1,46 +1,38 @@
 import os
+import requests
 from flask import Flask, request, jsonify
-import yt_dlp
 
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Müzik API Aktif"
+    return "Audius Müzik API Aktif!"
 
 @app.route('/search', methods=['GET'])
 def search():
     query = request.args.get('term')
-    if not query:
-        return jsonify([])
-    
-    # YouTube engellerini aşmak için en sağlam ayarlar
-    ydl_opts = {
-        'format': 'bestaudio/best',
-        'noplaylist': True,
-        'quiet': True,
-        'no_warnings': True,
-        'default_search': 'ytsearch',
-        'nocheckcertificate': True,
-        'ignoreerrors': True,
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-    }
+    if not query: return jsonify([])
     
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(f"ytsearch10:{query}", download=False)
-            results = []
-            if info and 'entries' in info:
-                for entry in info['entries']:
-                    if entry and entry.get('url'):
-                        results.append({
-                            'trackId': entry.get('id', 'unknown'),
-                            'trackName': entry.get('title', 'Bilinmeyen Şarkı'),
-                            'artistName': entry.get('uploader', 'Bilinmeyen Sanatçı'),
-                            'previewUrl': entry.get('url', ''),
-                            'artworkUrl100': entry.get('thumbnail', '')
-                        })
-            return jsonify(results)
+        # Audius Discovery API kullanımı
+        search_url = f"https://discoveryprovider.audius.co/v1/tracks/search?query={query}&app_name=ERCAN_MUSIC"
+        response = requests.get(search_url, timeout=10)
+        data = response.json().get('data', [])
+        
+        results = []
+        for track in data:
+            track_id = track.get('id')
+            # Direkt çalınabilir stream URL'si
+            stream_url = f"https://discoveryprovider.audius.co/v1/tracks/{track_id}/stream?app_name=ERCAN_MUSIC"
+            
+            results.append({
+                'trackId': str(track_id),
+                'trackName': track.get('title'),
+                'artistName': track.get('user', {}).get('name'),
+                'previewUrl': stream_url,
+                'artworkUrl100': track.get('artwork', {}).get('150x150', '')
+            })
+        return jsonify(results)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
