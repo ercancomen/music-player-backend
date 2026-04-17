@@ -1,40 +1,44 @@
 import os
 import requests
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonifyapp = Flask(__name__)
 
-app = Flask(__name__)
+# En stabil Audius sunucuları
+AUDIUS_NODES = [
+    "https://audius-discovery-1.cultureregen.com",
+    "https://discovery-provider.audius.co",
+    "https://audius-dp.creary.net"
+]
 
 @app.route('/')
 def home():
-    return "Audius Müzik API Aktif!"
+    return "Müzik API Aktif!"
 
 @app.route('/search', methods=['GET'])
 def search():
     query = request.args.get('term')
     if not query: return jsonify([])
     
-    try:
-        # Audius Discovery API kullanımı
-        search_url = f"https://discoveryprovider.audius.co/v1/tracks/search?query={query}&app_name=ERCAN_MUSIC"
-        response = requests.get(search_url, timeout=10)
-        data = response.json().get('data', [])
-        
-        results = []
-        for track in data:
-            track_id = track.get('id')
-            # Direkt çalınabilir stream URL'si
-            stream_url = f"https://discoveryprovider.audius.co/v1/tracks/{track_id}/stream?app_name=ERCAN_MUSIC"
+    # Sırayla sunucuları dene
+    for node in AUDIUS_NODES:
+        try:
+            url = f"{node}/v1/tracks/search?query={query}&app_name=ERCAN_MUSIC"
+            response = requests.get(url, timeout=5)
+            if response.status_code == 200:
+                data = response.json().get('data', [])
+                results = []
+                for track in data:
+                    results.append({
+                        'trackId': track.get('id'),
+                        'trackName': track.get('title', 'Bilinmeyen'),
+                        'artistName': track.get('user', {}).get('name', 'Bilinmeyen'),
+                        'previewUrl': f"{node}/v1/tracks/{track.get('id')}/stream?app_name=ERCAN_MUSIC",
+                        'artworkUrl100': track.get('artwork', {}).get('150x150', '')
+                    })
+                return jsonify(results)
+        except:
+            continue
             
-            results.append({
-                'trackId': str(track_id),
-                'trackName': track.get('title'),
-                'artistName': track.get('user', {}).get('name'),
-                'previewUrl': stream_url,
-                'artworkUrl100': track.get('artwork', {}).get('150x150', '')
-            })
-        return jsonify(results)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    return jsonify([])
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 10000))
