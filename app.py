@@ -6,12 +6,13 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Müzik API Çalışıyor!"
+    return "Müzik API Aktif"
 
 @app.route('/search', methods=['GET'])
 def search():
     query = request.args.get('term')
-    if not query: return jsonify([])
+    if not query:
+        return jsonify([])
     
     # YouTube engellerini aşmak için en sağlam ayarlar
     ydl_opts = {
@@ -21,19 +22,19 @@ def search():
         'no_warnings': True,
         'default_search': 'ytsearch',
         'nocheckcertificate': True,
+        'ignoreerrors': True,
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
     }
     
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # YouTube'da ara ve ilk 10 sonucu al
             info = ydl.extract_info(f"ytsearch10:{query}", download=False)
             results = []
-            if 'entries' in info:
+            if info and 'entries' in info:
                 for entry in info['entries']:
                     if entry and entry.get('url'):
                         results.append({
-                            'trackId': str(entry.get('id', '')),
+                            'trackId': entry.get('id', 'unknown'),
                             'trackName': entry.get('title', 'Bilinmeyen Şarkı'),
                             'artistName': entry.get('uploader', 'Bilinmeyen Sanatçı'),
                             'previewUrl': entry.get('url', ''),
