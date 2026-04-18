@@ -13,11 +13,11 @@ AUDIUS_NODES = [
 
 @app.route('/')
 def home():
-    return "Ercan Music API (Audius) Aktif!"
+    return "Ercan Music API Aktif!"
 
 @app.route('/search', methods=['GET'])
 def search():
-    # Android'den gelen her iki parametreyi de kontrol et
+    # Android 'q' gönderdiği için hem 'q' hem 'term' kontrolü yapıyoruz
     query = request.args.get('q') or request.args.get('term')
     
     if not query:
@@ -25,7 +25,6 @@ def search():
 
     for node in AUDIUS_NODES:
         try:
-            # Audius API üzerinden arama yap
             url = f"{node}/v1/tracks/search?query={query}&app_name=ERCAN_MUSIC"
             response = requests.get(url, timeout=5)
             
@@ -33,7 +32,6 @@ def search():
                 data = response.json().get('data', [])
                 results = []
                 for track in data:
-                    # Android'deki iTunesResult sınıfıyla tam eşleşme
                     results.append({
                         'trackId': str(track.get('id')),
                         'trackName': track.get('title', 'Bilinmeyen'),
@@ -42,10 +40,9 @@ def search():
                         'artworkUrl100': track.get('artwork', {}).get('150x150', '')
                     })
                 return jsonify(results)
-        except Exception as e:
-            print(f"Node hatası: {e}")
-            continue # Diğer sunucuyu dene
-
+        except:
+            continue
+            
     return jsonify([])
 
 if __name__ == '__main__':
