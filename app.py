@@ -2,10 +2,7 @@ import os
 import requests
 from flask import Flask, request, jsonify
 
-app = Flask(__name__)
-
-# En güncel ve hızlı Audius sunucuları
-AUDIUS_NODES = [
+app = Flask(__name__)AUDIUS_NODES = [
     "https://audius-discovery-1.cultureregen.com",
     "https://discovery-provider.audius.co",
     "https://audius-dp.creary.net"
@@ -13,19 +10,18 @@ AUDIUS_NODES = [
 
 @app.route('/')
 def home():
-    return "Ercan Music API Aktif! Arama yapmak için /search?q=sorgu kullanın."
+    return "API Aktif - Arama yapmak icin /search?q=sorgu kullanin."
 
 @app.route('/search', methods=['GET'])
 def search():
-    # Android tarafı 'q' harfiyle veri gönderiyor
-    query = request.args.get('q') or request.args.get('term') or request.args.get('query')
+    # Android'den gelen 'q' parametresini al
+    query = request.args.get('q')
     
     if not query:
         return jsonify([])
 
     for node in AUDIUS_NODES:
         try:
-            # Audius API Arama
             url = f"{node}/v1/tracks/search?query={query}&app_name=ERCAN_PLAYER"
             response = requests.get(url, timeout=8)
             
@@ -33,17 +29,16 @@ def search():
                 data = response.json().get('data', [])
                 results = []
                 for track in data:
-                    # BURASI ÇOK ÖNEMLİ: Android'deki iTunesResult sınıfı ile birebir aynı isimler olmalı
+                    # Android tarafındaki iTunesResult sınıfı ile TAM UYUM
                     results.append({
-                        "trackId": str(track.get('id', '')),
-                        "trackName": track.get('title', 'Bilinmeyen Şarkı'),
-                        "artistName": track.get('user', {}).get('name', 'Bilinmeyen Sanatçı'),
+                        "trackId": str(track.get('id', '')), # ID'yi mutlaka String'e cevir
+                        "trackName": str(track.get('title', 'Bilinmeyen Sarki')),
+                        "artistName": str(track.get('user', {}).get('name', 'Bilinmeyen Sanatci')),
                         "previewUrl": f"{node}/v1/tracks/{track.get('id')}/stream?app_name=ERCAN_PLAYER",
-                        "artworkUrl100": track.get('artwork', {}).get('150x150', '')
+                        "artworkUrl100": str(track.get('artwork', {}).get('150x150', ''))
                     })
                 return jsonify(results)
-        except Exception as e:
-            print(f"Hata: {e}")
+        except:
             continue
             
     return jsonify([])
