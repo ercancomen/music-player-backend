@@ -1,6 +1,5 @@
 import os
-from flask import Flask, request, jsonify
-import yt_dlp
+from flask import Flask, request, jsonifyimport yt_dlp
 
 app = Flask(__name__)
 
@@ -10,12 +9,14 @@ def home():
 
 @app.route('/search', methods=['GET'])
 def search():
-    query = request.args.get('term')
+    # Android tarafı 'q', 'term' veya 'query' gönderebilir. Hepsini kontrol ediyoruz.
+    query = request.args.get('q') or request.args.get('term') or request.args.get('query')
+    
     if not query:
         return jsonify([])
 
-    # Daha isabetli sonuçlar için sorguyu müzik odaklı hale getiriyoruz
-    search_query = f"ytsearch20:{query} official audio"
+    # Daha isabetli sonuçlar için sorguyu optimize ediyoruz
+    search_query = f"ytsearch15:{query} official audio"
 
     ydl_opts = {
         'format': 'bestaudio/best',
@@ -25,20 +26,22 @@ def search():
         'default_search': 'ytsearch',
         'nocheckcertificate': True,
         'ignoreerrors': True,
+        # Render/Cloud servislerinde engellenmemek için kullanıcı taklidi
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
     }
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # YouTube'da 20 sonuç arıyoruz (Daha detaylı)
+            # YouTube'dan verileri çek
             info = ydl.extract_info(search_query, download=False)
             
             results = []
             if info and 'entries' in info:
                 for entry in info['entries']:
                     if entry and entry.get('url'):
+                        # Android'deki iTunesResult data class yapısına tam uyumlu hale getiriyoruz
                         results.append({
-                            'trackId': entry.get('id', 'unknown'),
+                            'trackId': str(entry.get('id', '')),
                             'trackName': entry.get('title', 'Bilinmeyen Şarkı'),
                             'artistName': entry.get('uploader', 'Bilinmeyen Sanatçı'),
                             'previewUrl': entry.get('url', ''),
@@ -47,9 +50,11 @@ def search():
             
             return jsonify(results)
     except Exception as e:
-        # Hata olsa bile 500 hatası yerine boş liste döndürerek uygulamayı koru
+        print(f"Hata: {str(e)}")
+        # Hata durumunda boş liste dön ki uygulama çökmesin
         return jsonify([])
 
 if __name__ == '__main__':
+    # Render'ın port ayarını otomatik almasını sağlar
     port = int(os.environ.get('PORT', 10000))
     app.run(host='0.0.0.0', port=port)
