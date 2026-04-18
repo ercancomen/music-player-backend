@@ -13,127 +13,85 @@ AUDIUS_NODES = [
 APP_NAME = "ERCAN_MUSIC"
 
 
-# ---------------------------
-# Yardımcı Fonksiyonlar
-# ---------------------------
-
-def clean_text(text):
-    return (text or "").lower().strip()
-
-
-def build_query(query):
-    # Daha iyi sonuç için query genişlet
-    return f"{query} turkish official"
-
-
-def is_relevant(track, query):
-    title = clean_text(track.get("title"))
-    artist = clean_text(track.get("user", {}).get("name"))
-
-    q = clean_text(query)
-
-    return q in title or q in artist
+def clean(text):
+    return (text or "").lower()
 
 
 def score_track(track, query):
-    title = clean_text(track.get("title"))
-    artist = clean_text(track.get("user", {}).get("name"))
-    q = clean_text(query)
+    title = clean(track.get("title"))
+    artist = clean(track.get("user", {}).get("name"))
+    q = clean(query)
 
     score = 0
 
-    # Ana eşleşme
+    # güçlü eşleşme
     if q in title:
         score += 5
     if q in artist:
         score += 3
 
-    # Türkçe boost
-    if "turk" in title or "turk" in artist:
-        score += 2
+    # kelime bazlı eşleşme
+    for word in q.split():
+        if word in title:
+            score += 2
+        if word in artist:
+            score += 1
 
-    # kısa başlıklar genelde daha doğru
-    if len(title) < 40:
+    # türkçe boost (yumuşak)
+    if any(x in title for x in ["aşk", "kalp", "sev", "göz", "bir", "sen"]):
         score += 1
 
     return score
 
 
-def format_track(track, node):
-    return {
-        "trackId": track.get("id"),
-        "trackName": track.get("title", "Bilinmeyen"),
-        "artistName": track.get("user", {}).get("name", "Bilinmeyen"),
-        "previewUrl": f"{node}/v1/tracks/{track.get('id')}/stream?app_name={APP_NAME}",
-        "artworkUrl100": track.get("artwork", {}).get("150x150", "")
-    }
-
-
-# ---------------------------
-# ROUTES
-# ---------------------------
-
 @app.route("/")
 def home():
-    return "Müzik API Aktif 🚀"
+    return "API çalışıyor"
 
 
-@app.route("/search", methods=["GET"])
+@app.route("/search")
 def search():
     query = request.args.get("term")
 
     if not query:
         return jsonify([])
 
-    search_query = build_query(query)
-
     for node in AUDIUS_NODES:
         try:
             url = f"{node}/v1/tracks/search"
             params = {
-                "query": search_query,
+                "query": query,   # 🔴 ARTIK query'yi bozmadık
                 "app_name": APP_NAME,
                 "limit": 50
             }
 
-            response = requests.get(url, params=params, timeout=5)
+            res = requests.get(url, params=params, timeout=5)
 
-            if response.status_code != 200:
+            if res.status_code != 200:
                 continue
 
-            data = response.json().get("data", [])
+            data = res.json().get("data", [])
 
-            # 1. filtre
-            filtered = [t for t in data if is_relevant(t, query)]
-
-            # filtre boşsa fallback (filtreyi gevşet)
-            if not filtered:
-                filtered = data
-
-            # 2. skorla ve sırala
+            # 🔥 SADECE SIRALA (filtre yok)
             sorted_tracks = sorted(
-                filtered,
+                data,
                 key=lambda x: score_track(x, query),
                 reverse=True
             )
 
-            # 3. ilk 15'i al
-            final_tracks = sorted_tracks[:15]
-
-            results = [format_track(t, node) for t in final_tracks]
+            results = []
+            for track in sorted_tracks[:15]:
+                results.append({
+                    "trackId": track.get("id"),
+                    "trackName": track.get("title", "Bilinmeyen"),
+                    "artistName": track.get("user", {}).get("name", "Bilinmeyen"),
+                    "previewUrl": f"{node}/v1/tracks/{track.get('id')}/stream?app_name={APP_NAME}",
+                    "artworkUrl100": track.get("artwork", {}).get("150x150", "")
+                })
 
             return jsonify(results)
 
-        except Exception as e:
+        except:
             continue
 
     return jsonify([])
-
-
-# ---------------------------
-# RUN
-# ---------------------------
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
